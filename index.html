@@ -1,0 +1,813 @@
+<!DOCTYPE html>
+<html lang="zh-TW" class="h-full">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="目標手帳">
+  <meta name="theme-color" content="#2563eb" id="metaThemeColor">
+  <title>目標手帳 Pro</title>
+
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              50: '#eff6ff',
+              100: '#dbeafe',
+              500: '#3b82f6',
+              600: '#2563eb',
+              700: '#1d4ed8',
+            }
+          },
+          fontFamily: {
+            sans: ['-apple-system', 'BlinkMacSystemFont', '"Segoe UI"', 'Roboto', 'Helvetica', 'Arial', 'sans-serif'],
+          }
+        }
+      }
+    }
+  </script>
+
+  <style>
+    /* 原生 App 手勢與防縮放優化 */
+    * {
+      -webkit-tap-highlight-color: transparent;
+      touch-action: manipulation;
+      box-sizing: border-box;
+    }
+
+    body {
+      -webkit-user-select: none;
+      user-select: none;
+      overscroll-behavior-y: none;
+      padding-top: env(safe-area-inset-top);
+      padding-bottom: env(safe-area-inset-bottom);
+    }
+
+    /* 輸入元素例外開放選取，維持最小 16px 防止 iOS Safari 自動放大 */
+    input, textarea, select {
+      -webkit-user-select: text !important;
+      user-select: text !important;
+      font-size: 16px !important;
+    }
+
+    /* 原生 App 按壓觸控微縮反饋 */
+    button:active, .interactive-btn:active {
+      transform: scale(0.96);
+      opacity: 0.9;
+      transition: transform 0.1s ease, opacity 0.1s ease;
+    }
+
+    /* 自定義進度環動畫 */
+    .progress-ring__circle {
+      transition: stroke-dashoffset 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+      transform: rotate(-90deg);
+      transform-origin: 50% 50%;
+    }
+
+    /* 隱藏滾動條但保持滾動 */
+    .no-scrollbar::-webkit-scrollbar {
+      display: none;
+    }
+    .no-scrollbar {
+      -ms-overflow-style: none;
+      scrollbar-width: none;
+    }
+  </style>
+</head>
+
+<body class="h-full bg-slate-50 text-slate-900 dark:bg-zinc-950 dark:text-zinc-100 flex flex-col font-sans transition-colors duration-200">
+  <!-- 頂部導航欄 (具備毛玻璃效果與狀態列適配) -->
+  <header class="sticky top-0 z-30 bg-white/80 dark:bg-zinc-900/80 backdrop-blur-md border-b border-slate-200/80 dark:border-zinc-800/80 px-4 py-3 flex items-center justify-between">
+    <div class="flex items-center space-x-2.5">
+      <div id="appIconPlaceholder" class="w-8 h-8 rounded-xl shadow-md overflow-hidden flex items-center justify-center bg-blue-600 text-white font-bold">
+        <!-- 動態置換為向量圖 -->
+      </div>
+      <div>
+        <h1 class="text-lg font-bold tracking-tight leading-tight text-slate-900 dark:text-white">目標手帳 Pro</h1>
+        <p id="todayDateLabel" class="text-xs text-slate-500 dark:text-zinc-400">載入日期中...</p>
+      </div>
+    </div>
+    
+    <div class="flex items-center space-x-2">
+      <!-- 反思筆記按鈕 -->
+      <button id="openJournalBtn" class="p-2 rounded-full text-slate-600 dark:text-zinc-300 hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors" title="今日反思" aria-label="今日反思手帳">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+        </svg>
+      </button>
+      <!-- 深淺色切換按鈕 -->
+      <button id="themeToggleBtn" class="p-2 rounded-full text-slate-600 dark:text-zinc-300 hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors" title="切換外觀" aria-label="切換主題">
+        <svg id="moonIcon" class="w-5 h-5 hidden dark:block" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
+        </svg>
+        <svg id="sunIcon" class="w-5 h-5 block dark:hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
+        </svg>
+      </button>
+    </div>
+  </header>
+
+  <!-- 主內容捲動區 -->
+  <main class="flex-1 overflow-y-auto px-4 py-4 space-y-5 no-scrollbar max-w-md mx-auto w-full">
+    
+    <!-- 今日核心統計卡片 -->
+    <section class="bg-gradient-to-br from-blue-600 to-indigo-700 rounded-3xl p-5 text-white shadow-xl shadow-blue-500/15 relative overflow-hidden">
+      <div class="absolute -right-6 -bottom-6 w-32 h-32 bg-white/10 rounded-full blur-2xl pointer-events-none"></div>
+      
+      <div class="flex items-center justify-between">
+        <div>
+          <span class="text-xs uppercase tracking-wider text-blue-100 font-semibold">今日進度概覽</span>
+          <h2 id="progressHeadline" class="text-2xl font-black mt-0.5">0 / 0 已完成</h2>
+          <div class="flex items-center gap-1.5 mt-2 bg-white/20 backdrop-blur-md px-2.5 py-1 rounded-full text-xs w-max">
+            <span class="text-amber-300">🔥</span>
+            <span id="streakCountBadge" class="font-medium">已連續打卡 0 天</span>
+          </div>
+        </div>
+
+        <!-- 圓形百分比儀表 -->
+        <div class="relative w-20 h-20 flex items-center justify-center">
+          <svg class="w-20 h-20" viewBox="0 0 80 80">
+            <circle class="text-blue-900/30" stroke-width="7" stroke="currentColor" fill="transparent" r="32" cx="40" cy="40"/>
+            <circle id="progressRing" class="progress-ring__circle text-white" stroke-width="7" stroke-dasharray="201.06" stroke-dashoffset="201.06" stroke-linecap="round" stroke="currentColor" fill="transparent" r="32" cx="40" cy="40"/>
+          </svg>
+          <div class="absolute flex flex-col items-center">
+            <span id="progressPercentText" class="text-sm font-extrabold">0%</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 線性進度條 -->
+      <div class="mt-4 pt-3 border-t border-white/15">
+        <div class="w-full bg-black/20 rounded-full h-2 overflow-hidden">
+          <div id="linearProgressBar" class="bg-white h-full rounded-full transition-all duration-500 ease-out" style="width: 0%"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 分類標籤篩選列 -->
+    <div class="flex items-center space-x-2 overflow-x-auto no-scrollbar py-1 text-xs font-medium">
+      <button class="filter-tab px-3.5 py-1.5 rounded-full bg-blue-600 text-white shadow-sm" data-category="ALL">全部目標</button>
+      <button class="filter-tab px-3.5 py-1.5 rounded-full bg-white dark:bg-zinc-800 text-slate-600 dark:text-zinc-300 border border-slate-200 dark:border-zinc-700/60" data-category="健康">🏃 健康</button>
+      <button class="filter-tab px-3.5 py-1.5 rounded-full bg-white dark:bg-zinc-800 text-slate-600 dark:text-zinc-300 border border-slate-200 dark:border-zinc-700/60" data-category="學習">📚 學習</button>
+      <button class="filter-tab px-3.5 py-1.5 rounded-full bg-white dark:bg-zinc-800 text-slate-600 dark:text-zinc-300 border border-slate-200 dark:border-zinc-700/60" data-category="工作">💼 工作</button>
+      <button class="filter-tab px-3.5 py-1.5 rounded-full bg-white dark:bg-zinc-800 text-slate-600 dark:text-zinc-300 border border-slate-200 dark:border-zinc-700/60" data-category="心靈">🌱 心靈</button>
+    </div>
+
+    <!-- 目標清單區域 -->
+    <section class="space-y-3 pb-20">
+      <div class="flex items-center justify-between px-1">
+        <h3 class="text-sm font-semibold text-slate-600 dark:text-zinc-400">每日打卡項目</h3>
+        <span id="goalCountBadge" class="text-xs text-slate-400 dark:text-zinc-500">共 0 項</span>
+      </div>
+
+      <div id="goalsList" class="space-y-3">
+        <!-- 動態渲染目標項目卡片 -->
+      </div>
+
+      <!-- 空白狀態提示 -->
+      <div id="emptyState" class="hidden text-center py-12 px-4 rounded-3xl border-2 border-dashed border-slate-200 dark:border-zinc-800">
+        <div class="w-14 h-14 mx-auto rounded-full bg-blue-50 dark:bg-blue-900/30 text-blue-600 flex items-center justify-center text-2xl mb-3">
+          ✨
+        </div>
+        <h4 class="text-base font-bold text-slate-700 dark:text-zinc-300">尚未建立目標</h4>
+        <p class="text-xs text-slate-400 dark:text-zinc-500 mt-1">點擊右下方「＋」按鈕，開啟今日的高效旅程！</p>
+      </div>
+    </section>
+  </main>
+
+  <!-- 懸浮新增目標按鈕 (FAB) -->
+  <div class="fixed bottom-6 right-6 z-20">
+    <button id="openNewGoalModalBtn" class="flex items-center justify-center w-14 h-14 rounded-2xl bg-blue-600 text-white shadow-lg shadow-blue-600/30 hover:bg-blue-700 transition-all font-bold text-2xl focus:outline-none" aria-label="新增目標">
+      <svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4" />
+      </svg>
+    </button>
+  </div>
+
+  <!-- 新增/編輯目標彈窗 -->
+  <div id="goalModal" class="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm hidden transition-opacity duration-200">
+    <div class="w-full sm:max-w-md bg-white dark:bg-zinc-900 rounded-t-3xl sm:rounded-3xl p-6 shadow-2xl transform transition-transform duration-300 max-h-[90vh] overflow-y-auto">
+      <div class="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-zinc-800">
+        <h3 id="modalTitle" class="text-lg font-bold text-slate-900 dark:text-white">新增每日目標</h3>
+        <button id="closeModalBtn" class="p-1 rounded-full text-slate-400 hover:text-slate-600 dark:hover:text-zinc-200">
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
+
+      <form id="goalForm" class="mt-4 space-y-4">
+        <input type="hidden" id="goalIdInput">
+        <div>
+          <label class="block text-xs font-semibold text-slate-600 dark:text-zinc-400 mb-1">目標名稱 *</label>
+          <input type="text" id="goalTitleInput" required placeholder="例如：慢跑 3 公里、晨讀 20 分鐘" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-zinc-700 bg-slate-50 dark:bg-zinc-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold text-slate-600 dark:text-zinc-400 mb-1">分類標籤</label>
+          <div class="grid grid-cols-4 gap-2 text-xs">
+            <label class="flex flex-col items-center justify-center p-2 rounded-xl border border-slate-200 dark:border-zinc-700 bg-slate-50 dark:bg-zinc-800 cursor-pointer has-[:checked]:border-blue-600 has-[:checked]:bg-blue-50 dark:has-[:checked]:bg-blue-900/30">
+              <input type="radio" name="goalCategory" value="健康" checked class="hidden">
+              <span class="text-base mb-0.5">🏃</span>
+              <span class="text-slate-700 dark:text-zinc-300">健康</span>
+            </label>
+            <label class="flex flex-col items-center justify-center p-2 rounded-xl border border-slate-200 dark:border-zinc-700 bg-slate-50 dark:bg-zinc-800 cursor-pointer has-[:checked]:border-blue-600 has-[:checked]:bg-blue-50 dark:has-[:checked]:bg-blue-900/30">
+              <input type="radio" name="goalCategory" value="學習" class="hidden">
+              <span class="text-base mb-0.5">📚</span>
+              <span class="text-slate-700 dark:text-zinc-300">學習</span>
+            </label>
+            <label class="flex flex-col items-center justify-center p-2 rounded-xl border border-slate-200 dark:border-zinc-700 bg-slate-50 dark:bg-zinc-800 cursor-pointer has-[:checked]:border-blue-600 has-[:checked]:bg-blue-50 dark:has-[:checked]:bg-blue-900/30">
+              <input type="radio" name="goalCategory" value="工作" class="hidden">
+              <span class="text-base mb-0.5">💼</span>
+              <span class="text-slate-700 dark:text-zinc-300">工作</span>
+            </label>
+            <label class="flex flex-col items-center justify-center p-2 rounded-xl border border-slate-200 dark:border-zinc-700 bg-slate-50 dark:bg-zinc-800 cursor-pointer has-[:checked]:border-blue-600 has-[:checked]:bg-blue-50 dark:has-[:checked]:bg-blue-900/30">
+              <input type="radio" name="goalCategory" value="心靈" class="hidden">
+              <span class="text-base mb-0.5">🌱</span>
+              <span class="text-slate-700 dark:text-zinc-300">心靈</span>
+            </label>
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold text-slate-600 dark:text-zinc-400 mb-1">目標備忘 / 動力金句（選填）</label>
+          <input type="text" id="goalNoteInput" placeholder="例如：持之以恆，看見改變" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-zinc-700 bg-slate-50 dark:bg-zinc-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+        </div>
+
+        <div class="pt-2 flex gap-3">
+          <button type="button" id="cancelModalBtn" class="flex-1 py-3 rounded-xl border border-slate-200 dark:border-zinc-700 text-slate-600 dark:text-zinc-300 font-semibold text-sm">取消</button>
+          <button type="submit" class="flex-1 py-3 rounded-xl bg-blue-600 text-white font-semibold text-sm shadow-md shadow-blue-500/20">儲存目標</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 每日反思手帳彈窗 -->
+  <div id="journalModal" class="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm hidden transition-opacity duration-200">
+    <div class="w-full sm:max-w-md bg-white dark:bg-zinc-900 rounded-t-3xl sm:rounded-3xl p-6 shadow-2xl max-h-[90vh] overflow-y-auto">
+      <div class="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-zinc-800">
+        <div>
+          <h3 class="text-lg font-bold text-slate-900 dark:text-white">今日反思手帳</h3>
+          <p id="journalDateLabel" class="text-xs text-slate-400 dark:text-zinc-500"></p>
+        </div>
+        <button id="closeJournalBtn" class="p-1 rounded-full text-slate-400 hover:text-slate-600 dark:hover:text-zinc-200">
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
+
+      <div class="mt-4 space-y-4">
+        <div>
+          <label class="block text-xs font-semibold text-slate-600 dark:text-zinc-400 mb-2">今天的心情狀態</label>
+          <div class="flex justify-between items-center bg-slate-50 dark:bg-zinc-800 p-2 rounded-2xl">
+            <button class="mood-btn text-2xl p-2 rounded-xl transition-all" data-mood="😊" title="充實開心">😊</button>
+            <button class="mood-btn text-2xl p-2 rounded-xl transition-all" data-mood="🚀" title="幹勁滿滿">🚀</button>
+            <button class="mood-btn text-2xl p-2 rounded-xl transition-all" data-mood="🌿" title="平靜和諧">🌿</button>
+            <button class="mood-btn text-2xl p-2 rounded-xl transition-all" data-mood="💡" title="獲得啟發">💡</button>
+            <button class="mood-btn text-2xl p-2 rounded-xl transition-all" data-mood="😴" title="稍感疲憊">😴</button>
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold text-slate-600 dark:text-zinc-400 mb-1">今日總結與感恩筆記</label>
+          <textarea id="journalTextInput" rows="4" placeholder="今天做得很棒的一件事是什麼？明天想如何持續前進？" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-zinc-700 bg-slate-50 dark:bg-zinc-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"></textarea>
+        </div>
+
+        <button id="saveJournalBtn" class="w-full py-3 rounded-xl bg-blue-600 text-white font-semibold text-sm shadow-md shadow-blue-500/20">儲存手帳心得</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 提示氣泡通知 (Toast) 代替 alert -->
+  <div id="toastNotification" class="fixed top-5 left-1/2 -translate-x-1/2 z-50 px-4 py-2.5 rounded-2xl bg-slate-900/90 dark:bg-white/90 text-white dark:text-zinc-900 text-sm font-medium shadow-xl opacity-0 pointer-events-none transition-all duration-300 flex items-center space-x-2">
+    <span id="toastIcon">✨</span>
+    <span id="toastMessage">操作成功</span>
+  </div>
+
+  <!-- 確認對話框 (替代 confirm) -->
+  <div id="confirmModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm hidden">
+    <div class="w-5/6 max-w-xs bg-white dark:bg-zinc-900 rounded-3xl p-5 shadow-2xl text-center space-y-4">
+      <div class="w-12 h-12 rounded-full bg-red-100 dark:bg-red-900/30 text-red-600 flex items-center justify-center mx-auto text-xl">
+        🗑️
+      </div>
+      <div>
+        <h4 class="text-base font-bold text-slate-900 dark:text-white">確定刪除目標？</h4>
+        <p class="text-xs text-slate-500 dark:text-zinc-400 mt-1">此動作無法復原，過去的打卡歷史仍會記錄。</p>
+      </div>
+      <div class="flex gap-2">
+        <button id="cancelConfirmBtn" class="flex-1 py-2.5 rounded-xl border border-slate-200 dark:border-zinc-700 text-slate-700 dark:text-zinc-300 text-xs font-semibold">取消</button>
+        <button id="okConfirmBtn" class="flex-1 py-2.5 rounded-xl bg-red-600 text-white text-xs font-semibold shadow-md shadow-red-500/20">刪除</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    /* PWA SVG 圖標轉 Data URI 與 Manifest 動態建立 */
+    const APP_ICON_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+      <defs>
+        <linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stop-color="#3b82f6" />
+          <stop offset="100%" stop-color="#1d4ed8" />
+        </linearGradient>
+      </defs>
+      <rect width="512" height="512" rx="128" fill="url(#grad)" />
+      <circle cx="256" cy="256" r="160" fill="none" stroke="rgba(255,255,255,0.2)" stroke-width="28" />
+      <path d="M160 260 L230 330 L352 190" fill="none" stroke="#ffffff" stroke-width="44" stroke-linecap="round" stroke-linejoin="round" />
+    </svg>`;
+
+    const iconDataUri = 'data:image/svg+xml;utf8,' + encodeURIComponent(APP_ICON_SVG);
+
+    // 填入導覽列小圖示
+    document.getElementById('appIconPlaceholder').innerHTML = `<img src="${iconDataUri}" class="w-full h-full object-cover" alt="Icon">`;
+
+    // 建立 Favicon 與 Apple Touch Icon
+    const linkIcon = document.createElement('link');
+    linkIcon.rel = 'icon';
+    linkIcon.type = 'image/svg+xml';
+    linkIcon.href = iconDataUri;
+    document.head.appendChild(linkIcon);
+
+    const linkAppleIcon = document.createElement('link');
+    linkAppleIcon.rel = 'apple-touch-icon';
+    linkAppleIcon.href = iconDataUri;
+    document.head.appendChild(linkAppleIcon);
+
+    // 動態產生 Web App Manifest Blob URL 並掛載至 <head>
+    const manifestObject = {
+      name: "目標手帳 Pro",
+      short_name: "目標手帳",
+      description: "個人每日目標打卡與反思手帳 PWA",
+      display: "standalone",
+      start_url: "./",
+      background_color: "#ffffff",
+      theme_color: "#2563eb",
+      icons: [
+        {
+          src: iconDataUri,
+          sizes: "512x512",
+          type: "image/svg+xml",
+          purpose: "any maskable"
+        }
+      ]
+    };
+
+    const manifestBlob = new Blob([JSON.stringify(manifestObject)], { type: 'application/json' });
+    const manifestURL = URL.createObjectURL(manifestBlob);
+    const linkManifest = document.createElement('link');
+    linkManifest.rel = 'manifest';
+    linkManifest.href = manifestURL;
+    document.head.appendChild(linkManifest);
+
+    // 註冊內聯 Service Worker 提供完整 PWA 離線能力
+    if ('serviceWorker' in navigator) {
+      const swCode = `
+        const CACHE_NAME = 'habit-tracker-pro-v1';
+        self.addEventListener('install', (e) => {
+          self.skipWaiting();
+        });
+        self.addEventListener('activate', (e) => {
+          e.waitUntil(clients.claim());
+        });
+        self.addEventListener('fetch', (e) => {
+          // 快取優先 / 網路回退
+          e.respondWith(
+            caches.match(e.request).then((res) => {
+              return res || fetch(e.request).catch(() => caches.match('./'));
+            })
+          );
+        });
+      `;
+      const swBlob = new Blob([swCode], { type: 'application/javascript' });
+      const swUrl = URL.createObjectURL(swBlob);
+      navigator.serviceWorker.register(swUrl).catch(() => {
+        // 在沙盒環境下略過註冊失敗日誌
+      });
+    }
+
+    // 本地資料儲存與狀態管理
+    const STORAGE_KEY_GOALS = 'habit_tracker_goals_data';
+    const STORAGE_KEY_LOGS = 'habit_tracker_history_logs';
+    const STORAGE_KEY_JOURNAL = 'habit_tracker_daily_journal';
+    const STORAGE_KEY_THEME = 'habit_tracker_theme_pref';
+
+    const getTodayDateKey = () => {
+      const d = new Date();
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    };
+
+    const defaultInitialGoals = [
+      { id: '1', title: '喝足 2000cc 開水', category: '健康', note: '維持身體健康代謝', createdAt: Date.now() },
+      { id: '2', title: '深度閱讀 25 分鐘', category: '學習', note: '專注吸收新知，不做多工', createdAt: Date.now() },
+      { id: '3', title: '完成今日首要核心專案', category: '工作', note: '吃掉那隻青蛙', createdAt: Date.now() },
+      { id: '4', title: '晚間靜心反思 5 分鐘', category: '心靈', note: '整理思緒，感恩今日收穫', createdAt: Date.now() }
+    ];
+
+    let goals = [];
+    let checkinLogs = {}; // 格式: { '2026-10-05': ['id1', 'id2'] }
+    let dailyJournals = {}; // 格式: { '2026-10-05': { mood: '😊', text: '...' } }
+    let activeFilter = 'ALL';
+    let pendingDeleteId = null;
+
+    // 安全載入資料
+    function loadAppData() {
+      try {
+        const storedGoals = localStorage.getItem(STORAGE_KEY_GOALS);
+        goals = storedGoals ? JSON.parse(storedGoals) : defaultInitialGoals;
+        
+        const storedLogs = localStorage.getItem(STORAGE_KEY_LOGS);
+        checkinLogs = storedLogs ? JSON.parse(storedLogs) : {};
+
+        const storedJournals = localStorage.getItem(STORAGE_KEY_JOURNAL);
+        dailyJournals = storedJournals ? JSON.parse(storedJournals) : {};
+      } catch (err) {
+        goals = defaultInitialGoals;
+        checkinLogs = {};
+        dailyJournals = {};
+      }
+    }
+
+    function saveGoalsData() {
+      try {
+        localStorage.setItem(STORAGE_KEY_GOALS, JSON.stringify(goals));
+      } catch (e) {}
+    }
+
+    function saveLogsData() {
+      try {
+        localStorage.setItem(STORAGE_KEY_LOGS, JSON.stringify(checkinLogs));
+      } catch (e) {}
+    }
+
+    function saveJournalsData() {
+      try {
+        localStorage.setItem(STORAGE_KEY_JOURNAL, JSON.stringify(dailyJournals));
+      } catch (e) {}
+    }
+
+    function updateDateDisplay() {
+      const d = new Date();
+      const options = { month: 'long', day: 'numeric', weekday: 'long' };
+      const dateString = d.toLocaleDateString('zh-TW', options);
+      document.getElementById('todayDateLabel').textContent = dateString;
+      document.getElementById('journalDateLabel').textContent = dateString;
+    }
+
+    // 計算連續打卡天數
+    function calculateConsecutiveStreak() {
+      let streak = 0;
+      let checkDate = new Date();
+      const todayKey = getTodayDateKey();
+
+      // 如果今天已打卡至少 1 個，今天納入連勝
+      const todayCompleted = checkinLogs[todayKey] && checkinLogs[todayKey].length > 0;
+      if (!todayCompleted) {
+        // 今天還沒打卡，檢查昨天是否打卡延續連勝
+        checkDate.setDate(checkDate.getDate() - 1);
+      }
+
+      while (true) {
+        const y = checkDate.getFullYear();
+        const m = String(checkDate.getMonth() + 1).padStart(2, '0');
+        const day = String(checkDate.getDate()).padStart(2, '0');
+        const key = `${y}-${m}-${day}`;
+
+        if (checkinLogs[key] && checkinLogs[key].length > 0) {
+          streak++;
+          checkDate.setDate(checkDate.getDate() - 1);
+        } else {
+          break;
+        }
+      }
+
+      return streak;
+    }
+
+    function renderApp() {
+      const today = getTodayDateKey();
+      const todayCompletedIds = checkinLogs[today] || [];
+      const totalGoals = goals.length;
+      const completedCount = goals.filter(g => todayCompletedIds.includes(g.id)).length;
+      const percent = totalGoals > 0 ? Math.round((completedCount / totalGoals) * 100) : 0;
+
+      // 更新進度與標題
+      document.getElementById('progressHeadline').textContent = `${completedCount} / ${totalGoals} 已完成`;
+      document.getElementById('progressPercentText').textContent = `${percent}%`;
+      document.getElementById('linearProgressBar').style.width = `${percent}%`;
+
+      // 環狀 SVG 動態位移
+      const circumference = 2 * Math.PI * 32; // r=32
+      const offset = circumference - (percent / 100) * circumference;
+      const ring = document.getElementById('progressRing');
+      ring.style.strokeDashoffset = offset;
+
+      // 連勝天數更新
+      const streak = calculateConsecutiveStreak();
+      document.getElementById('streakCountBadge').textContent = `已連續打卡 ${streak} 天`;
+
+      // 篩選目標項目
+      const filteredGoals = goals.filter(g => {
+        if (activeFilter === 'ALL') return true;
+        return g.category === activeFilter;
+      });
+
+      document.getElementById('goalCountBadge').textContent = `共 ${filteredGoals.length} 項`;
+
+      const listContainer = document.getElementById('goalsList');
+      const emptyState = document.getElementById('emptyState');
+
+      if (filteredGoals.length === 0) {
+        listContainer.innerHTML = '';
+        emptyState.classList.remove('hidden');
+        return;
+      }
+
+      emptyState.classList.add('hidden');
+      listContainer.innerHTML = filteredGoals.map(goal => {
+        const isDone = todayCompletedIds.includes(goal.id);
+        const categoryEmojiMap = {
+          '健康': '🏃',
+          '學習': '📚',
+          '工作': '💼',
+          '心靈': '🌱'
+        };
+        const icon = categoryEmojiMap[goal.category] || '🎯';
+
+        return `
+          <div class="interactive-btn group bg-white dark:bg-zinc-900 border ${isDone ? 'border-blue-200 dark:border-blue-900/60 bg-blue-50/20' : 'border-slate-200/80 dark:border-zinc-800'} rounded-2xl p-4 shadow-sm hover:shadow transition-all flex items-center justify-between gap-3">
+            <div class="flex items-center space-x-3.5 min-w-0 flex-1">
+              <!-- 完成打卡核取按鈕 -->
+              <button onclick="toggleGoalCheckin('${goal.id}')" class="w-10 h-10 rounded-2xl flex-shrink-0 flex items-center justify-center transition-all ${isDone ? 'bg-blue-600 text-white shadow-md shadow-blue-500/30' : 'border-2 border-slate-300 dark:border-zinc-700 hover:border-blue-500 text-transparent'}" aria-label="切換打卡">
+                <svg class="w-5 h-5 ${isDone ? 'scale-100 opacity-100' : 'scale-50 opacity-0'} transition-all transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7" />
+                </svg>
+              </button>
+
+              <div class="min-w-0 flex-1">
+                <div class="flex items-center gap-1.5 flex-wrap">
+                  <span class="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-300">
+                    ${icon} ${goal.category}
+                  </span>
+                </div>
+                <h4 class="text-sm font-bold mt-1 text-slate-900 dark:text-zinc-100 truncate ${isDone ? 'line-through text-slate-400 dark:text-zinc-500' : ''}">
+                  ${escapeHtml(goal.title)}
+                </h4>
+                ${goal.note ? `<p class="text-xs text-slate-400 dark:text-zinc-500 truncate mt-0.5">${escapeHtml(goal.note)}</p>` : ''}
+              </div>
+            </div>
+
+            <!-- 操作選單 (編輯與刪除) -->
+            <div class="flex items-center space-x-1 flex-shrink-0">
+              <button onclick="openEditGoalModal('${goal.id}')" class="p-2 text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors" title="編輯">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                </svg>
+              </button>
+              <button onclick="promptDeleteGoal('${goal.id}')" class="p-2 text-slate-400 hover:text-red-500 transition-colors" title="刪除">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                </svg>
+              </button>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function escapeHtml(string) {
+      if (!string) return '';
+      return String(string)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+    }
+
+    window.toggleGoalCheckin = function(goalId) {
+      const today = getTodayDateKey();
+      if (!checkinLogs[today]) {
+        checkinLogs[today] = [];
+      }
+
+      const index = checkinLogs[today].indexOf(goalId);
+      if (index === -1) {
+        checkinLogs[today].push(goalId);
+        showToast('🎯 打卡成功！保持專注！');
+      } else {
+        checkinLogs[today].splice(index, 1);
+        showToast('已取消此項目今日打卡');
+      }
+
+      saveLogsData();
+      renderApp();
+    };
+
+    const goalModal = document.getElementById('goalModal');
+    const goalForm = document.getElementById('goalForm');
+    const goalTitleInput = document.getElementById('goalTitleInput');
+    const goalNoteInput = document.getElementById('goalNoteInput');
+    const goalIdInput = document.getElementById('goalIdInput');
+    const modalTitle = document.getElementById('modalTitle');
+
+    function openNewGoalModal() {
+      goalIdInput.value = '';
+      goalTitleInput.value = '';
+      goalNoteInput.value = '';
+      modalTitle.textContent = '新增每日目標';
+      const defaultRadio = document.querySelector('input[name="goalCategory"][value="健康"]');
+      if (defaultRadio) defaultRadio.checked = true;
+      goalModal.classList.remove('hidden');
+      setTimeout(() => goalTitleInput.focus(), 100);
+    }
+
+    window.openEditGoalModal = function(id) {
+      const target = goals.find(g => g.id === id);
+      if (!target) return;
+      goalIdInput.value = target.id;
+      goalTitleInput.value = target.title;
+      goalNoteInput.value = target.note || '';
+      modalTitle.textContent = '編輯每日目標';
+
+      const catRadio = document.querySelector(`input[name="goalCategory"][value="${target.category}"]`);
+      if (catRadio) catRadio.checked = true;
+
+      goalModal.classList.remove('hidden');
+      setTimeout(() => goalTitleInput.focus(), 100);
+    };
+
+    function closeGoalModal() {
+      goalModal.classList.add('hidden');
+    }
+
+    goalForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const title = goalTitleInput.value.trim();
+      const note = goalNoteInput.value.trim();
+      const category = (document.querySelector('input[name="goalCategory"]:checked') || {}).value || '健康';
+      const editId = goalIdInput.value;
+
+      if (!title) return;
+
+      if (editId) {
+        // 更新現有目標
+        const index = goals.findIndex(g => g.id === editId);
+        if (index !== -1) {
+          goals[index] = { ...goals[index], title, note, category };
+          showToast('目標已更新');
+        }
+      } else {
+        // 建立新目標
+        const newGoal = {
+          id: Date.now().toString(),
+          title,
+          note,
+          category,
+          createdAt: Date.now()
+        };
+        goals.unshift(newGoal);
+        showToast('已新增目標');
+      }
+
+      saveGoalsData();
+      renderApp();
+      closeGoalModal();
+    });
+
+    document.getElementById('openNewGoalModalBtn').addEventListener('click', openNewGoalModal);
+    document.getElementById('closeModalBtn').addEventListener('click', closeGoalModal);
+    document.getElementById('cancelModalBtn').addEventListener('click', closeGoalModal);
+
+    const confirmModal = document.getElementById('confirmModal');
+    window.promptDeleteGoal = function(id) {
+      pendingDeleteId = id;
+      confirmModal.classList.remove('hidden');
+    };
+
+    document.getElementById('cancelConfirmBtn').addEventListener('click', () => {
+      pendingDeleteId = null;
+      confirmModal.classList.add('hidden');
+    });
+
+    document.getElementById('okConfirmBtn').addEventListener('click', () => {
+      if (pendingDeleteId) {
+        goals = goals.filter(g => g.id !== pendingDeleteId);
+        saveGoalsData();
+        renderApp();
+        showToast('目標已移除');
+      }
+      pendingDeleteId = null;
+      confirmModal.classList.add('hidden');
+    });
+
+    const journalModal = document.getElementById('journalModal');
+    const journalTextInput = document.getElementById('journalTextInput');
+    let selectedMood = '😊';
+
+    function openJournalModal() {
+      const today = getTodayDateKey();
+      const currentEntry = dailyJournals[today] || { mood: '😊', text: '' };
+      journalTextInput.value = currentEntry.text || '';
+      selectMood(currentEntry.mood || '😊');
+      journalModal.classList.remove('hidden');
+    }
+
+    function selectMood(mood) {
+      selectedMood = mood;
+      document.querySelectorAll('.mood-btn').forEach(btn => {
+        if (btn.dataset.mood === mood) {
+          btn.classList.add('bg-blue-600', 'text-white', 'shadow-md', 'scale-110');
+        } else {
+          btn.classList.remove('bg-blue-600', 'text-white', 'shadow-md', 'scale-110');
+        }
+      });
+    }
+
+    document.querySelectorAll('.mood-btn').forEach(btn => {
+      btn.addEventListener('click', () => selectMood(btn.dataset.mood));
+    });
+
+    document.getElementById('openJournalBtn').addEventListener('click', openJournalModal);
+    document.getElementById('closeJournalBtn').addEventListener('click', () => journalModal.classList.add('hidden'));
+
+    document.getElementById('saveJournalBtn').addEventListener('click', () => {
+      const today = getTodayDateKey();
+      dailyJournals[today] = {
+        mood: selectedMood,
+        text: journalTextInput.value.trim(),
+        updatedAt: Date.now()
+      };
+      saveJournalsData();
+      journalModal.classList.add('hidden');
+      showToast('今日反思已儲存 📝');
+    });
+
+    document.querySelectorAll('.filter-tab').forEach(tab => {
+      tab.addEventListener('click', () => {
+        document.querySelectorAll('.filter-tab').forEach(t => {
+          t.className = 'filter-tab px-3.5 py-1.5 rounded-full bg-white dark:bg-zinc-800 text-slate-600 dark:text-zinc-300 border border-slate-200 dark:border-zinc-700/60';
+        });
+        tab.className = 'filter-tab px-3.5 py-1.5 rounded-full bg-blue-600 text-white shadow-sm';
+        activeFilter = tab.dataset.category;
+        renderApp();
+      });
+    });
+
+    // 主題切換 (自動偵測與手動切換)
+    const htmlElem = document.documentElement;
+    const themeBtn = document.getElementById('themeToggleBtn');
+
+    function applyTheme(theme) {
+      if (theme === 'dark') {
+        htmlElem.classList.add('dark');
+        document.getElementById('metaThemeColor').setAttribute('content', '#09090b');
+      } else {
+        htmlElem.classList.remove('dark');
+        document.getElementById('metaThemeColor').setAttribute('content', '#2563eb');
+      }
+      try {
+        localStorage.setItem(STORAGE_KEY_THEME, theme);
+      } catch (e) {}
+    }
+
+    themeBtn.addEventListener('click', () => {
+      const isDark = htmlElem.classList.contains('dark');
+      applyTheme(isDark ? 'light' : 'dark');
+    });
+
+    // 系統預設主題檢查
+    const savedTheme = localStorage.getItem(STORAGE_KEY_THEME);
+    if (savedTheme) {
+      applyTheme(savedTheme);
+    } else if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+      applyTheme('dark');
+    }
+
+    let toastTimer = null;
+    function showToast(msg) {
+      const toast = document.getElementById('toastNotification');
+      document.getElementById('toastMessage').textContent = msg;
+      toast.classList.remove('opacity-0', 'pointer-events-none');
+      toast.classList.add('opacity-100');
+
+      if (toastTimer) clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => {
+        toast.classList.remove('opacity-100');
+        toast.classList.add('opacity-0', 'pointer-events-none');
+      }, 2200);
+    }
+
+    window.addEventListener('DOMContentLoaded', () => {
+      loadAppData();
+      updateDateDisplay();
+      renderApp();
+    });
+  </script>
+</body>
+</html>
